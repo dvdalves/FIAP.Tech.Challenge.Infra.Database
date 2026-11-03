@@ -1,4 +1,4 @@
-azure_region                = "Brazil South"
+azure_region                = "North Central US"
 resource_group_name         = "fiap-tech-challenge-db-rg"
 environment                 = "production"
 db_identifier               = "oficina-postgres-db"
