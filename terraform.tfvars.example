@@ -1,4 +1,4 @@
-azure_region                = "East US"
+azure_region                = "West Europe"
 resource_group_name         = "fiap-tech-challenge-db-rg"
 environment                 = "production"
 db_identifier               = "oficina-postgres-db"
@@ -6,7 +6,7 @@ db_name                     = "oficina_db"
 db_username                 = "oficina_admin"
 db_password                 = ""
 db_instance_class           = "B_Standard_B1ms"
-allocated_storage           = 20
+allocated_storage           = 32
 max_allocated_storage       = 50
 engine_version              = "16"
 vnet_name                   = "fiap-db-vnet"

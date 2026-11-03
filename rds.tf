@@ -15,9 +15,13 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   geo_redundant_backup_enabled  = var.multi_az
   auto_grow_enabled             = true
   public_network_access_enabled = false
-  high_availability {
-    mode                      = var.multi_az ? "ZoneRedundant" : "Disabled"
-    standby_availability_zone = var.multi_az ? "2" : null
+  dynamic "high_availability" {
+    for_each = var.multi_az ? [1] : []
+
+    content {
+      mode                      = "ZoneRedundant"
+      standby_availability_zone = "2"
+    }
   }
 
   depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]

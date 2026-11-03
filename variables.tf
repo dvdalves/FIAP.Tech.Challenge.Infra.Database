@@ -1,7 +1,7 @@
 variable "azure_region" {
   description = "Região do Azure para provisionamento do PostgreSQL"
   type        = string
-  default     = "East US"
+  default     = "West Europe"
 }
 
 variable "resource_group_name" {
@@ -50,7 +50,7 @@ variable "db_instance_class" {
 variable "allocated_storage" {
   description = "Armazenamento alocado inicial em GiB"
   type        = number
-  default     = 20
+  default     = 32
 }
 
 variable "max_allocated_storage" {
@@ -62,7 +62,7 @@ variable "max_allocated_storage" {
 variable "engine_version" {
   description = "Versão do PostgreSQL no Azure"
   type        = string
-  default     = "16.3"
+  default     = "16"
 }
 
 variable "vnet_name" {
