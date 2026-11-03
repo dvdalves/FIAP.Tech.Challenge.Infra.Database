@@ -1,7 +1,7 @@
 variable "azure_region" {
   description = "Região do Azure para provisionamento do PostgreSQL"
   type        = string
-  default     = "West Europe"
+  default     = "Brazil South"
 }
 
 variable "resource_group_name" {
