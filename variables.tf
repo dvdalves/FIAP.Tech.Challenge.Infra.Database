@@ -1,7 +1,13 @@
-variable "aws_region" {
-  description = "Região da AWS para provisionamento do banco de dados RDS"
+variable "azure_region" {
+  description = "Região do Azure para provisionamento do PostgreSQL"
   type        = string
-  default     = "us-east-1"
+  default     = "East US"
+}
+
+variable "resource_group_name" {
+  description = "Resource Group do banco"
+  type        = string
+  default     = "fiap-tech-challenge-db-rg"
 }
 
 variable "environment" {
@@ -11,7 +17,7 @@ variable "environment" {
 }
 
 variable "db_identifier" {
-  description = "Identificador único da instância RDS PostgreSQL"
+  description = "Nome único do Azure Database for PostgreSQL"
   type        = string
   default     = "oficina-postgres-db"
 }
@@ -29,16 +35,16 @@ variable "db_username" {
 }
 
 variable "db_password" {
-  description = "Senha master do banco (se vazia, gerada aleatoriamente via Secrets Manager)"
+  description = "Senha master do banco (se vazia, gerada aleatoriamente e armazenada no Key Vault)"
   type        = string
   sensitive   = true
   default     = ""
 }
 
 variable "db_instance_class" {
-  description = "Classe de instância do AWS RDS"
+  description = "SKU do Azure Database for PostgreSQL"
   type        = string
-  default     = "db.t4g.micro"
+  default     = "B_Standard_B1ms"
 }
 
 variable "allocated_storage" {
@@ -48,33 +54,33 @@ variable "allocated_storage" {
 }
 
 variable "max_allocated_storage" {
-  description = "Limite superior para armazenamento elástico autoescalável em GiB"
+  description = "Limite superior de armazenamento autoexpansível em GiB"
   type        = number
   default     = 50
 }
 
 variable "engine_version" {
-  description = "Versão do PostgreSQL no RDS"
+  description = "Versão do PostgreSQL no Azure"
   type        = string
   default     = "16.3"
 }
 
-variable "vpc_id" {
-  description = "ID da VPC onde o banco será alocado (se vazio, usa a VPC padrão)"
+variable "vnet_name" {
+  description = "Nome da VNet privada do banco"
   type        = string
-  default     = ""
+  default     = "fiap-db-vnet"
 }
 
-variable "private_subnet_ids" {
-  description = "Lista de IDs de subnets privadas para o DB Subnet Group (se vazia, busca as subnets da VPC)"
+variable "vnet_address_space" {
+  description = "Espaço CIDR da VNet"
   type        = list(string)
-  default     = []
+  default     = ["10.1.0.0/16"]
 }
 
-variable "vpc_cidr" {
-  description = "Bloco CIDR da VPC permitido para tráfego na porta 5432"
+variable "subnet_address_prefix" {
+  description = "CIDR da subnet delegada ao PostgreSQL"
   type        = string
-  default     = "10.0.0.0/16"
+  default     = "10.1.1.0/24"
 }
 
 variable "backup_retention_period" {
@@ -84,25 +90,25 @@ variable "backup_retention_period" {
 }
 
 variable "multi_az" {
-  description = "Habilitar alta disponibilidade Multi-AZ com réplica síncrona de failover"
+  description = "Habilitar alta disponibilidade zone-redundant"
   type        = bool
   default     = false
 }
 
 variable "deletion_protection" {
-  description = "Habilitar proteção contra deleção acidental da instância RDS"
+  description = "Habilitar proteção contra deleção acidental"
   type        = bool
   default     = false
 }
 
 variable "skip_final_snapshot" {
-  description = "Pular snapshot final na destruição (true para ambientes de teste e validação)"
+  description = "Mantido por compatibilidade; Azure usa retenção de backup"
   type        = bool
   default     = true
 }
 
 variable "enable_performance_insights" {
-  description = "Habilitar Performance Insights para análise de queries lentas e gargalos"
+  description = "Habilitar métricas e diagnósticos do Azure Monitor"
   type        = bool
   default     = true
 }

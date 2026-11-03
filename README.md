@@ -2,7 +2,7 @@
 
 [![CI/CD Pipeline](https://github.com/dvdalves/FIAP.Tech.Challenge.Infra.Database/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/dvdalves/FIAP.Tech.Challenge.Infra.Database/actions/workflows/ci-cd.yml)
 
-Repositório responsável pelo provisionamento como código (**IaC - Terraform**) da **infraestrutura de Banco de Dados Gerenciado (AWS RDS PostgreSQL)**, isolamento em subnets privadas, governança de credenciais via **AWS Secrets Manager**, scripts DDL de inicialização e documentação detalhada do modelo relacional, em conformidade com as exigências da **Fase 3 do Tech Challenge SOAT - FIAP**.
+Repositório responsável pelo provisionamento como código (**IaC - Terraform**) da **infraestrutura de Banco de Dados Gerenciado (Azure Database for PostgreSQL)**, isolamento em subnets privadas, governança de credenciais via **Azure Key Vault**, scripts DDL de inicialização e documentação detalhada do modelo relacional, em conformidade com as exigências da **Fase 3 do Tech Challenge SOAT - FIAP**.
 
 ---
 
@@ -31,9 +31,9 @@ Repositório responsável pelo provisionamento como código (**IaC - Terraform**
 
 Garantir o isolamento, a alta disponibilidade, o backup e a governança de dados operacionais do sistema **SIAES (Oficina Mecânica)**. Este repositório provê:
 
-- Provisionamento automatizado de uma instância gerenciada **PostgreSQL 16** via AWS RDS.
+- Provisionamento automatizado de uma instância gerenciada **PostgreSQL 16** via Azure Database for PostgreSQL.
 - Isolamento estrito de tráfego de banco em subnets privadas com bloqueio total de conexões públicas externas.
-- Automação de senhas e geração da *connection string* de conexão com injeção segura no **AWS Secrets Manager** e **AWS SSM Parameter Store**.
+- Automação de senhas e geração da *connection string* de conexão com injeção segura no **Azure Key Vault** e **Azure Key Vault**.
 - Scripts DDL versionados de schema (`01_schema.sql`) e carga de dados de teste (`02_seed.sql`).
 - Documentação formal das decisões de modelagem relacional.
 
@@ -44,10 +44,10 @@ Garantir o isolamento, a alta disponibilidade, o backup e a governança de dados
 | Tecnologia | Versão | Finalidade |
 | :--- | :--- | :--- |
 | **Terraform** | `>= 1.5.0` | Orquestração declarativa de infraestrutura como código (IaC) |
-| **AWS RDS** | PostgreSQL 16.3 | Banco de dados relacional gerenciado corporativo |
-| **AWS Secrets Manager** | Nativo | Armazenamento seguro e cifrado das credenciais administrativas do banco |
-| **AWS SSM Parameter Store**| Nativo | Distribuição segura do Connection String para EKS e Lambda |
-| **AWS KMS** | Nativo | Criptografia de dados em repouso (*encryption at rest*) com chaves gerenciadas |
+| **Azure Database for PostgreSQL** | PostgreSQL 16.3 | Banco de dados relacional gerenciado corporativo |
+| **Azure Key Vault** | Nativo | Armazenamento seguro e cifrado das credenciais administrativas do banco |
+| **Azure Key Vault**| Nativo | Distribuição segura do Connection String para AKS e Container Apps |
+| **Azure KMS** | Nativo | Criptografia de dados em repouso (*encryption at rest*) com chaves gerenciadas |
 | **PostgreSQL DDL / SQL** | ANSI SQL / pgSQL | Definição de tabelas, chaves primárias, estrangeiras e índices B-Tree |
 | **GitHub Actions** | v4 | Pipeline automatizada de validação sintática, linting e deploy |
 
@@ -57,34 +57,32 @@ Garantir o isolamento, a alta disponibilidade, o backup e a governança de dados
 
 ```mermaid
 graph TD
-    subgraph VPC ["AWS VPC (10.0.0.0/16)"]
-        subgraph PrivateSubnets ["Subnets Privadas (Multi-AZ)"]
-            RDSPrimary["🗄️ AWS RDS PostgreSQL (Primary Instance)"]
-            RDSStandby["🔄 Multi-AZ Standby Replica (Failover Síncrono)"]
-            SubnetGroup["🏷️ DB Subnet Group (Private AZ-a / AZ-b)"]
+    subgraph VNet ["Azure VNet (10.0.0.0/16)"]
+        subgraph PrivateSubnets ["Subnets Privadas (zone-redundant)"]
+            PostgreSQLFlexivelPrimary["🗄️ Azure Database for PostgreSQL (Primary Instance)"]
+            PostgreSQLFlexivelStandby["🔄 zone-redundant Standby Replica (Failover Síncrono)"]
+            PrivateSubnet["🏷️ Subnet delegada privada"]
         end
 
         subgraph ClientApplications ["Clientes da Aplicação"]
-            EKSNodes["🖥️ EKS Worker Nodes (API .NET 10)"]
-            AuthLambda["⚡ AWS Lambda (Autenticação por CPF)"]
+            AKSNodes["🖥️ AKS Worker Nodes (API .NET 10)"]
+            AuthLambda["⚡ Azure Container Apps (Autenticação por CPF)"]
         end
 
-        SG["🛡️ Security Group RDS (Porta 5432 restrita)"]
+        NSG["🛡️ Network Security Group PostgreSQL (Porta 5432 restrita)"]
     end
 
-    subgraph SecurityControl ["AWS Security & Identity"]
-        SecretsMgr["🔐 AWS Secrets Manager (Credenciais Dinâmicas)"]
-        SSM["📜 AWS SSM Parameter Store (/database/connection_string)"]
+    subgraph SecurityControl ["Azure Security & Identity"]
+        KeyVault["🔐 Azure Key Vault (database-connection-string)"]
     end
 
-    EKSNodes -->|TCP 5432| SG
-    AuthLambda -->|TCP 5432| SG
-    SG --> RDSPrimary
-    RDSPrimary -.->|Replicação Síncrona| RDSStandby
-    RDSPrimary --> SubnetGroup
+    AKSNodes -->|TCP 5432| NSG
+    AuthLambda -->|TCP 5432| NSG
+    NSG --> PostgreSQLFlexivelPrimary
+    PostgreSQLFlexivelPrimary -.->|Replicação Síncrona| PostgreSQLFlexivelStandby
+    PostgreSQLFlexivelPrimary --> PrivateSubnet
 
-    RDSPrimary --> SecretsMgr
-    SecretsMgr --> SSM
+    PostgreSQLFlexivelPrimary --> KeyVault
 ```
 
 ---
@@ -101,11 +99,11 @@ O negócio da oficina possui relações intrínsecas e bem estruturadas: um clie
 
 ### 3. Índices de Alto Desempenho e Tipos Avançados
 - Suporte a identificadores únicos universais (**UUID v4**) como chaves primárias, impedindo ataques de enumeração (*IDOR*) e facilitando a geração descentralizada de IDs na aplicação.
-- Índices B-Tree especializados em colunas de alta frequência de busca (`Cpf` do cliente para a Lambda de autenticação e `Placa` do veículo).
+- Índices B-Tree especializados em colunas de alta frequência de busca (`Cpf` do cliente para o serviço de autenticação e `Placa` do veículo).
 - Suporte a tipos JSONB caso haja necessidade futura de armazenar dados semiestruturados de telemetria veicular.
 
-### 4. Alta Disponibilidade e Gerenciamento no AWS RDS
-O AWS RDS oferece réplica síncrona Multi-AZ com failover automatizado em menos de 60 segundos, snapshots automáticos contínuos com recuperação ponto no tempo (*Point-in-Time Recovery - PITR*) de até 35 dias, e armazenamento elástico autoescalável (*Storage Auto-scaling*).
+### 4. Alta Disponibilidade e Gerenciamento no Azure Database for PostgreSQL
+O Azure Database for PostgreSQL oferece réplica síncrona zone-redundant com failover automatizado em menos de 60 segundos, snapshots automáticos contínuos com recuperação ponto no tempo (*Point-in-Time Recovery - PITR*) de até 35 dias, e armazenamento elástico autoescalável (*Storage Auto-scaling*).
 
 ---
 
@@ -194,7 +192,7 @@ erDiagram
 - **`ItensOrdemServico`**: Tabela associativa polimórfica que compõe as peças aplicadas e os serviços executados na OS.
 
 ### Otimizações de Índices e Performance
-- `IX_Clientes_Cpf`: Índice único garantindo busca O(1) na rota `/auth/token` da AWS Lambda.
+- `IX_Clientes_Cpf`: Índice único garantindo busca O(1) na rota `/auth/token` da Azure Container Apps.
 - `IX_Veiculos_Placa`: Índice único para busca ágil de histórico de veículos na recepção da oficina.
 - `IX_OrdensServico_Status`: Acelera a filtragem do quadro operacional de serviços ativos.
 - `IX_OrdensServico_ClienteId`: Otimiza a listagem de ordens de serviço por cliente autenticado.
@@ -205,7 +203,7 @@ erDiagram
 
 ### Pré-requisitos
 - [Terraform CLI](https://developer.hashicorp.com/terraform/downloads) instalado (versão >= 1.5.0).
-- [AWS CLI](https://aws.amazon.com/cli/) instalado e autenticado.
+- [Azure CLI](https://aws.amazon.com/cli/) instalado e autenticado.
 - Utilitário `psql` para execução manual dos scripts SQL (opcional, pois a aplicação EF Core executa `EnsureCreated`).
 
 ### Execução via Terraform CLI
@@ -214,8 +212,8 @@ erDiagram
 # 1. Copiar as variáveis de exemplo
 cp terraform.tfvars.example terraform.tfvars
 
-# 2. Ajustar os IDs de rede no terraform.tfvars (VPC e Subnets Privadas do cluster)
-# Caso deixe vazio, o Terraform utilizará a VPC padrão para fins de testes
+# 2. Ajustar os IDs de rede no terraform.tfvars (VNet e Subnets Privadas do cluster)
+# Caso deixe vazio, o Terraform utilizará a VNet padrão para fins de testes
 
 # 3. Inicializar provedores
 terraform init
@@ -249,8 +247,8 @@ psql -h $DB_HOST -U oficina_admin -d oficina_db -f sql/02_seed.sql
 O repositório adota as melhores práticas de segurança de nuvem:
 - Nenhuma senha plana é mantida em código ou controle de versão.
 - O recurso `random_password` gera automaticamente uma credencial com alta entropia criptográfica.
-- As credenciais são persistidas no **AWS Secrets Manager** (`oficina/production/database/credentials`), permitindo rotação automatizada sem indisponibilidade.
-- A aplicação consome o parâmetro via **AWS SSM Parameter Store** cifrado com AWS KMS.
+- As credenciais são persistidas no **Azure Key Vault** (`oficina/production/database/credentials`), permitindo rotação automatizada sem indisponibilidade.
+- A aplicação consome o parâmetro via **Azure Key Vault** cifrado com Azure KMS.
 
 ---
 
@@ -267,8 +265,8 @@ A pipeline declarada em [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.
 
 | Variável | Tipo | Padrão | Descrição |
 | :--- | :--- | :--- | :--- |
-| `aws_region` | `string` | `"us-east-1"` | Região AWS do RDS |
-| `db_identifier` | `string` | `"oficina-postgres-db"` | Identificador da instância RDS |
+| `azure_region` | `string` | `"East US"` | Região Azure do PostgreSQL Flexível |
+| `db_identifier` | `string` | `"oficina-postgres-db"` | Identificador da instância PostgreSQL Flexível |
 | `db_name` | `string` | `"oficina_db"` | Nome da base de dados relacional |
 | `db_username` | `string` | `"oficina_admin"` | Usuário administrador |
 | `db_instance_class` | `string` | `"db.t4g.micro"` | Tipo e dimensionamento de hardware |
@@ -276,12 +274,12 @@ A pipeline declarada em [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.
 | `max_allocated_storage`| `number` | `50` | Limite do storage autoscaling |
 | `engine_version` | `string` | `"16.3"` | Versão oficial do PostgreSQL |
 | `backup_retention_period` | `number` | `7` | Retenção de backups diários |
-| `multi_az` | `bool` | `false` | Habilita réplica síncrona Multi-AZ |
+| `multi_az` | `bool` | `false` | Habilita réplica síncrona zone-redundant |
 
 ---
 
 ## 10. Segurança e Governança
 
-- **Isolamento de Rede**: O parâmetro `publicly_accessible = false` impede qualquer conexão pública ao RDS.
+- **Isolamento de Rede**: O parâmetro `publicly_accessible = false` impede qualquer conexão pública ao PostgreSQL Flexível.
 - **Proteção de Branch**: As branches `main` e `master` exigem abertura de Pull Request e aprovação das esteiras automáticas.
 - **Acesso Docente**: O usuário examinador `soat-architecture` possui permissão configurada para inspeção do repositório.
