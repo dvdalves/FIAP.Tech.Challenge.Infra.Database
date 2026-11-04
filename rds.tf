@@ -3,8 +3,6 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   resource_group_name           = azurerm_resource_group.main.name
   location                      = azurerm_resource_group.main.location
   version                       = var.engine_version
-  delegated_subnet_id           = azurerm_subnet.postgres.id
-  private_dns_zone_id           = azurerm_private_dns_zone.postgres.id
   administrator_login           = var.db_username
   administrator_password        = local.effective_db_password
   sku_name                      = var.db_instance_class
@@ -13,7 +11,7 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
   backup_retention_days         = var.backup_retention_period
   geo_redundant_backup_enabled  = var.multi_az
   auto_grow_enabled             = true
-  public_network_access_enabled = false
+  public_network_access_enabled = true
   dynamic "high_availability" {
     for_each = var.multi_az ? [1] : []
 
@@ -22,8 +20,13 @@ resource "azurerm_postgresql_flexible_server" "postgres" {
       standby_availability_zone = "2"
     }
   }
+}
 
-  depends_on = [azurerm_private_dns_zone_virtual_network_link.postgres]
+resource "azurerm_postgresql_flexible_server_firewall_rule" "public_access" {
+  name             = "allow-public-access"
+  server_id        = azurerm_postgresql_flexible_server.postgres.id
+  start_ip_address = "0.0.0.0"
+  end_ip_address   = "255.255.255.255"
 }
 
 resource "azurerm_postgresql_flexible_server_database" "oficina" {

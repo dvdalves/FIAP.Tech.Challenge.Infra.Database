@@ -24,7 +24,6 @@ resource "azurerm_key_vault" "main" {
   rbac_authorization_enabled = false
   purge_protection_enabled   = var.deletion_protection
   soft_delete_retention_days = 7
-
 }
 
 data "azurerm_client_config" "current" {}
