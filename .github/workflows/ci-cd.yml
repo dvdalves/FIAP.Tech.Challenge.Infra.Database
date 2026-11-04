@@ -94,9 +94,13 @@ jobs:
 
       - name: 🔄 Importar Resource Group existente
         run: |
-          if ! terraform state show azurerm_resource_group.main >/dev/null 2>&1; then
+          if terraform state show azurerm_resource_group.main >/dev/null 2>&1; then
+            echo "Resource Group já está no state do Terraform."
+          elif az group show --name fiap-tech-challenge-db-rg >/dev/null 2>&1; then
             terraform import azurerm_resource_group.main \
               "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/fiap-tech-challenge-db-rg"
+          else
+            echo "Resource Group não existe; o Terraform irá criá-lo."
           fi
 
       - name: 🚀 Terraform Apply
