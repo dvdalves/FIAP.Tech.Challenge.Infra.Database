@@ -10,6 +10,10 @@ on:
 env:
   TERRAFORM_VERSION: "1.8.0"
   AZURE_REGION: "North Central US"
+  STATE_RESOURCE_GROUP: "fiap-terraform-state-rg"
+  STATE_STORAGE_ACCOUNT: "fiapdbtfstate2026"
+  STATE_CONTAINER: "tfstate"
+  STATE_KEY: "database/production.terraform.tfstate"
 
 jobs:
   # ============================================================================
@@ -60,8 +64,44 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: 🗄️ Preparar backend remoto
+        run: |
+          az group create \
+            --name "$STATE_RESOURCE_GROUP" \
+            --location "$AZURE_REGION" \
+            --output none
+          az storage account create \
+            --name "$STATE_STORAGE_ACCOUNT" \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --location "$AZURE_REGION" \
+            --sku Standard_LRS \
+            --kind StorageV2 \
+            --allow-blob-public-access false \
+            --output none
+          ACCOUNT_KEY=$(az storage account keys list \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --account-name "$STATE_STORAGE_ACCOUNT" \
+            --query "[0].value" \
+            --output tsv)
+          az storage container create \
+            --name "$STATE_CONTAINER" \
+            --account-name "$STATE_STORAGE_ACCOUNT" \
+            --account-key "$ACCOUNT_KEY" \
+            --output none
+
       - name: 📦 Terraform Init
-        run: terraform init
+        run: |
+          ACCOUNT_KEY=$(az storage account keys list \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --account-name "$STATE_STORAGE_ACCOUNT" \
+            --query "[0].value" \
+            --output tsv)
+          terraform init \
+            -backend-config="resource_group_name=$STATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$STATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$STATE_CONTAINER" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="access_key=$ACCOUNT_KEY"
 
       - name: 📋 Terraform Plan
         run: terraform plan -no-color
@@ -89,19 +129,64 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
+      - name: 🗄️ Preparar backend remoto
+        run: |
+          az group create --name "$STATE_RESOURCE_GROUP" --location "$AZURE_REGION" --output none
+          az storage account create \
+            --name "$STATE_STORAGE_ACCOUNT" \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --location "$AZURE_REGION" \
+            --sku Standard_LRS \
+            --kind StorageV2 \
+            --allow-blob-public-access false \
+            --output none
+          ACCOUNT_KEY=$(az storage account keys list \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --account-name "$STATE_STORAGE_ACCOUNT" \
+            --query "[0].value" \
+            --output tsv)
+          az storage container create \
+            --name "$STATE_CONTAINER" \
+            --account-name "$STATE_STORAGE_ACCOUNT" \
+            --account-key "$ACCOUNT_KEY" \
+            --output none
+
       - name: 📦 Terraform Init
-        run: terraform init
+        run: |
+          ACCOUNT_KEY=$(az storage account keys list \
+            --resource-group "$STATE_RESOURCE_GROUP" \
+            --account-name "$STATE_STORAGE_ACCOUNT" \
+            --query "[0].value" \
+            --output tsv)
+          terraform init \
+            -backend-config="resource_group_name=$STATE_RESOURCE_GROUP" \
+            -backend-config="storage_account_name=$STATE_STORAGE_ACCOUNT" \
+            -backend-config="container_name=$STATE_CONTAINER" \
+            -backend-config="key=$STATE_KEY" \
+            -backend-config="access_key=$ACCOUNT_KEY"
 
       - name: 🔄 Importar Resource Group existente
         run: |
-          if terraform state show azurerm_resource_group.main >/dev/null 2>&1; then
-            echo "Resource Group já está no state do Terraform."
-          elif az group show --name fiap-tech-challenge-db-rg >/dev/null 2>&1; then
-            terraform import azurerm_resource_group.main \
-              "/subscriptions/$(az account show --query id -o tsv)/resourceGroups/fiap-tech-challenge-db-rg"
-          else
-            echo "Resource Group não existe; o Terraform irá criá-lo."
-          fi
+          SUBSCRIPTION_ID=$(az account show --query id --output tsv)
+          import_if_needed() {
+            ADDRESS="$1"
+            RESOURCE_ID="$2"
+            if ! terraform state show "$ADDRESS" >/dev/null 2>&1 && az resource show --ids "$RESOURCE_ID" >/dev/null 2>&1; then
+              terraform import "$ADDRESS" "$RESOURCE_ID"
+            fi
+          }
+          import_if_needed azurerm_resource_group.main \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg"
+          import_if_needed azurerm_virtual_network.main \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.Network/virtualNetworks/fiap-db-vnet"
+          import_if_needed azurerm_subnet.postgres \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.Network/virtualNetworks/fiap-db-vnet/subnets/postgres-delegated"
+          import_if_needed azurerm_private_dns_zone.postgres \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.Network/privateDnsZones/private.postgres.database.azure.com"
+          import_if_needed azurerm_private_dns_zone_virtual_network_link.postgres \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.Network/privateDnsZones/private.postgres.database.azure.com/virtualNetworkLinks/oficina-postgres-db-dns-link"
+          import_if_needed azurerm_key_vault.main \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.KeyVault/vaults/oficina-postgres-db-kv"
 
       - name: 🚀 Terraform Apply
         run: terraform apply -auto-approve
