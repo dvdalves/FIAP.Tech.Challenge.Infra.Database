@@ -7,11 +7,10 @@ resource "random_password" "db_password" {
 locals {
   effective_db_password = var.db_password != "" ? var.db_password : random_password.db_password.result
   connection_string = format(
-    "Host=%s;Port=5432;Database=%s;Username=%s;%s=%s;Ssl Mode=Require;",
+    "Host=%s;Port=5432;Database=%s;Username=%s;Password=%s;Ssl Mode=Require;",
     azurerm_postgresql_flexible_server.postgres.fqdn,
     var.db_name,
     var.db_username,
-    "Pass" + "word",
     local.effective_db_password
   )
 }
