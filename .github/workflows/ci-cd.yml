@@ -187,6 +187,12 @@ jobs:
             "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.Network/privateDnsZones/private.postgres.database.azure.com/virtualNetworkLinks/oficina-postgres-db-dns-link"
           import_if_needed azurerm_key_vault.main \
             "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.KeyVault/vaults/oficina-postgres-db-kv"
+          import_if_needed azurerm_postgresql_flexible_server.postgres \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.DBforPostgreSQL/flexibleServers/oficina-postgres-db"
+          import_if_needed azurerm_postgresql_flexible_server_database.oficina \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.DBforPostgreSQL/flexibleServers/oficina-postgres-db/databases/oficina_db"
+          import_if_needed azurerm_postgresql_flexible_server_firewall_rule.public_access \
+            "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/fiap-tech-challenge-db-rg/providers/Microsoft.DBforPostgreSQL/flexibleServers/oficina-postgres-db/firewallRules/allow-public-access"
 
       - name: 🚀 Terraform Apply
         run: terraform apply -auto-approve
